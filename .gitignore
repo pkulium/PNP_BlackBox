@@ -173,5 +173,5 @@ cython_debug/
 *.vsix
 .DS_Store
 
-/save/*.th
+save/*
 /datasets/dataset_cache/*
