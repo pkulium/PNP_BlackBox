@@ -174,4 +174,5 @@ cython_debug/
 .DS_Store
 
 save/*
-/datasets/dataset_cache/*
+datasets/dataset_cache/*
+trained_models/*
