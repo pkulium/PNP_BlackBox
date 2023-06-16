@@ -245,10 +245,12 @@ def get_architecture(arch: str, dataset: str=None, pytorch_pretrained: bool=Fals
         return model
 
     elif arch == "cifar_encoder_192_24":
-        model = Cifar_Encoder_192_24().cuda()
+        # model = Cifar_Encoder_192_24().cuda()
+        model = Cifar_Encoder_192_24()
         return model
     elif arch == "cifar_decoder_192_24":
-        model = Cifar_Decoder_192_24().cuda()
+        # model = Cifar_Decoder_192_24().cuda()
+        model = Cifar_Decoder_192_24()
         return model
     elif arch == "cifar_encoder_192_24_noise":
         # model = Cifar_Encoder_192_24_noise().cuda()

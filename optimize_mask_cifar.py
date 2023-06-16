@@ -62,8 +62,8 @@ parser.add_argument('--classifier', default='', type=str,
                     help='path to the classifier used with the `classificaiton`'
                          'or `stability` objectives of the denoiser.')
 parser.add_argument('--pretrained-denoiser', default='', type=str, help='path to a pretrained denoiser')
-parser.add_argument('--pretrained-encoder', default='', type=str, help='path to a pretrained encoder')
-parser.add_argument('--pretrained-decoder', default='', type=str, help='path to a pretrained decoder')
+parser.add_argument('--pretrained-encoder', default='./trained_models/CIFAR-10/AutoEncoder_192_24_StanTrain_lr1e-3/encoder.pth.tar', type=str, help='path to a pretrained encoder')
+parser.add_argument('--pretrained-decoder', default='./trained_models/CIFAR-10/AutoEncoder_192_24_StanTrain_lr1e-3/decoder.pth.tar', type=str, help='path to a pretrained decoder')
 
 
 args = parser.parse_args()
@@ -125,20 +125,33 @@ def main():
 
     if args.model_type == 'AE_DS':
         if args.pretrained_encoder:
-            checkpoint = torch.load(args.pretrained_encoder)
-            assert checkpoint['arch'] == args.encoder_arch
+            checkpoint = torch.load(args.pretrained_encoder, map_location=device)
             encoder = get_architecture(checkpoint['arch'], args.dataset)
             encoder.load_state_dict(checkpoint['state_dict'])
         else:
             encoder = get_architecture(args.encoder_arch, args.dataset)
 
         if args.pretrained_decoder:
-            checkpoint = torch.load(args.pretrained_decoder)
-            assert checkpoint['arch'] == args.decoder_arch
+            checkpoint = torch.load(args.pretrained_decoder, map_location=device)
             decoder = get_architecture(checkpoint['arch'], args.dataset)
             decoder.load_state_dict(checkpoint['state_dict'])
         else:
             decoder = get_architecture(args.decoder_arch, args.dataset)
+        import torch.nn as nn
+        def modify_model(model):
+            new_model = nn.Sequential()
+            for name, layer in model.named_children():
+                if isinstance(layer, nn.Conv2d):
+                    # Add the convolutional layer
+                    new_model.add_module(name, layer)
+                    # Add a new batch normalization layer
+                    new_model.add_module(f'{name}_bn', models.NoisyBatchNorm2d(layer.out_channels))
+                else:
+                    new_model.add_module(name, layer)
+            return new_model
+        encoder.encoder = modify_model(encoder.encoder)
+        decoder.decoder = modify_model(decoder.decoder)
+
         encoder = encoder.to(device)
         decoder = decoder.to(device)
 
@@ -225,7 +238,7 @@ def mask_train(models, criterion, mask_opt, noise_opt, data_loader):
     encoder, decoder, model = models
     encoder.train()
     decoder.train()
-    model.eval()
+    model.train()
     total_correct = 0
     total_loss = 0.0
     nb_samples = 0
