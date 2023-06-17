@@ -75,12 +75,6 @@ def main():
         transforms.ToTensor(),
         transforms.Normalize(MEAN_CIFAR10, STD_CIFAR10)
     ])
-    transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize(MEAN_CIFAR10, STD_CIFAR10)
-    ])
 
     # Step 1: create poisoned / clean test set
     if args.trigger_info:
@@ -232,8 +226,8 @@ def test(models, criterion, data_loader):
         for i, (images, labels) in enumerate(data_loader):
             images, labels = images.to(device), labels.to(device)
             output = encoder(images)
-            output = decoder(images)
-            output = net(images)
+            output = decoder(output)
+            output = net(output)
             total_loss += criterion(output, labels).item()
             pred = output.data.max(1)[1]
             total_correct += pred.eq(labels.data.view_as(pred)).sum()
