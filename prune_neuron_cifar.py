@@ -145,7 +145,7 @@ def main():
     print('0 \t None     \t None     \t {:.4f} \t {:.4f} \t {:.4f} \t {:.4f}'.format(po_loss, po_acc, cl_loss, cl_acc))
     if args.pruning_by == 'threshold':
         results = evaluate_by_threshold(
-            net, mask_values, pruning_max=args.pruning_max, pruning_step=args.pruning_step,
+            [encoder, decoder], mask_values, pruning_max=args.pruning_max, pruning_step=args.pruning_step,
             criterion=criterion, clean_loader=clean_test_loader, poison_loader=poison_test_loader
         )
     else:
@@ -169,6 +169,9 @@ def read_data(file_name):
 
 
 def pruning(net, neuron):
+    encoder, decoder = net
+    weight_name = '{}.{}'.format(neuron[0], 'weight')
+    net = encoder if weight_name in encoder.state_dict() else decoder        
     state_dict = net.state_dict()
     weight_name = '{}.{}'.format(neuron[0], 'weight')
     state_dict[weight_name][int(neuron[1])] = 0.0
@@ -193,7 +196,7 @@ def evaluate_by_number(model, mask_values, pruning_max, pruning_step, criterion,
     return results
 
 
-def evaluate_by_threshold(model, mask_values, pruning_max, pruning_step, criterion, clean_loader, poison_loader):
+def evaluate_by_threshold(models, mask_values, pruning_max, pruning_step, criterion, clean_loader, poison_loader):
     results = []
     thresholds = np.arange(0, pruning_max + pruning_step, pruning_step)
     start = 0
@@ -201,13 +204,13 @@ def evaluate_by_threshold(model, mask_values, pruning_max, pruning_step, criteri
         idx = start
         for idx in range(start, len(mask_values)):
             if float(mask_values[idx][2]) <= threshold:
-                pruning(model, mask_values[idx])
+                pruning(models, mask_values[idx])
                 start += 1
             else:
                 break
         layer_name, neuron_idx, value = mask_values[idx][0], mask_values[idx][1], mask_values[idx][2]
-        cl_loss, cl_acc = test(model=model, criterion=criterion, data_loader=clean_loader)
-        po_loss, po_acc = test(model=model, criterion=criterion, data_loader=poison_loader)
+        cl_loss, cl_acc = test(models=models, criterion=criterion, data_loader=clean_loader)
+        po_loss, po_acc = test(models=models, criterion=criterion, data_loader=poison_loader)
         print('{:.2f} \t {} \t {} \t {} \t {:.4f} \t {:.4f} \t {:.4f} \t {:.4f}'.format(
             start, layer_name, neuron_idx, threshold, po_loss, po_acc, cl_loss, cl_acc))
         results.append('{:.2f} \t {} \t {} \t {} \t {:.4f} \t {:.4f} \t {:.4f} \t {:.4f}\n'.format(
