@@ -173,6 +173,6 @@ cython_debug/
 *.vsix
 .DS_Store
 
-save/*
+
 datasets/dataset_cache/*
 trained_models/*
