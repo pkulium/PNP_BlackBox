@@ -61,9 +61,10 @@ parser.add_argument('--decoder_arch', type=str, default='cifar_decoder_192_24_no
 parser.add_argument('--classifier', default='', type=str,
                     help='path to the classifier used with the `classificaiton`'
                          'or `stability` objectives of the denoiser.')
-parser.add_argument('--pretrained-denoiser', default='', type=str, help='path to a pretrained denoiser')
-parser.add_argument('--pretrained-encoder', default='./trained_models/CIFAR-10/AutoEncoder_192_24_StanTrain_lr1e-3/encoder.pth.tar', type=str, help='path to a pretrained encoder')
-parser.add_argument('--pretrained-decoder', default='./trained_models/CIFAR-10/AutoEncoder_192_24_StanTrain_lr1e-3/decoder.pth.tar', type=str, help='path to a pretrained decoder')
+# parser.add_argument('--pretrained_denoiser', default='./trained_models/CIFAR-10/ZO_AE_DS_lr-3_q192_Coord/best_denoiser.pth.tar', type=str, help='path to a pretrained denoiser')
+parser.add_argument('--pretrained_denoiser', default='', type=str, help='path to a pretrained denoiser')
+parser.add_argument('--pretrained_encoder', default='./trained_models/CIFAR-10/ZO_AE_DS_lr-3_q192_Coord/best_encoder.pth.tar', type=str, help='path to a pretrained encoder')
+parser.add_argument('--pretrained_decoder', default='./trained_models/CIFAR-10/ZO_AE_DS_lr-3_q192_Coord/best_decoder.pth.tar', type=str, help='path to a pretrained decoder')
 
 
 args = parser.parse_args()
@@ -105,6 +106,8 @@ def main():
     orig_train = CIFAR10(root=args.data_dir, train=True, download=True, transform=transform_train)
     _, clean_val = poison.split_dataset(dataset=orig_train, val_frac=args.val_frac,
                                         perm=np.loadtxt('./data/cifar_shuffle.txt', dtype=int))
+    # _, clean_val = poison.split_dataset(dataset=orig_train, val_frac=0.1,
+                                        # perm=np.loadtxt('./data/cifar_shuffle.txt', dtype=int))
     clean_test = CIFAR10(root=args.data_dir, train=False, download=True, transform=transform_test)
     poison_test = poison.add_predefined_trigger_cifar(data_set=clean_test, trigger_info=trigger_info)
 
@@ -123,6 +126,16 @@ def main():
     net = net.to(device)
     criterion = torch.nn.CrossEntropyLoss().to(device)
 
+    # --------------------- Model Loading -------------------------
+    # a) Denoiser
+    if args.pretrained_denoiser:
+        checkpoint = torch.load(args.pretrained_denoiser)
+        denoiser = get_architecture(checkpoint['arch'], args.dataset)
+        denoiser.load_state_dict(checkpoint['state_dict'])
+    else:
+        denoiser = get_architecture('cifar_dncnn_perturb', args.dataset)
+
+    # b) AutoEncoder
     if args.model_type == 'AE_DS':
         if args.pretrained_encoder:
             checkpoint = torch.load(args.pretrained_encoder, map_location=device)
@@ -149,13 +162,13 @@ def main():
                 else:
                     new_model.add_module(name, layer)
             return new_model
-        encoder.encoder = modify_model(encoder.encoder)
-        decoder.decoder = modify_model(decoder.decoder)
+        # encoder.encoder = modify_model(encoder.encoder)
+        # decoder.decoder = modify_model(decoder.decoder)
 
         encoder = encoder.to(device)
         decoder = decoder.to(device)
 
-    parameters = list(encoder.named_parameters()) + list(decoder.named_parameters())
+    parameters = list(denoiser.named_parameters()) 
     mask_params = [v for n, v in parameters if "neuron_mask" in n]
     mask_optimizer = torch.optim.SGD(mask_params, lr=args.lr, momentum=0.9)
     noise_params = [v for n, v in parameters if "neuron_noise" in n]
@@ -164,13 +177,14 @@ def main():
     # Step 3: train backdoored models
     print('Iter \t lr \t Time \t TrainLoss \t TrainACC \t PoisonLoss \t PoisonACC \t CleanLoss \t CleanACC')
     nb_repeat = int(np.ceil(args.nb_iter / args.print_every))
-    for i in range(nb_repeat):
+    # nb_repeat = 500
+    for i in range(1):
         start = time.time()
         lr = mask_optimizer.param_groups[0]['lr']
-        train_loss, train_acc = mask_train(models=[encoder, decoder, net], criterion=criterion, data_loader=clean_val_loader,
+        train_loss, train_acc = mask_train(models=[denoiser, encoder, decoder, net], criterion=criterion, data_loader=clean_val_loader,
                                            mask_opt=mask_optimizer, noise_opt=noise_optimizer)
-        cl_test_loss, cl_test_acc = test(models=[encoder, decoder, net], criterion=criterion, data_loader=clean_test_loader)
-        po_test_loss, po_test_acc = test(models=[encoder, decoder, net], criterion=criterion, data_loader=poison_test_loader)
+        cl_test_loss, cl_test_acc = test(models=[denoiser, encoder, decoder, net], criterion=criterion, data_loader=clean_test_loader)
+        po_test_loss, po_test_acc = test(models=[denoiser, encoder, decoder, net], criterion=criterion, data_loader=poison_test_loader)
         end = time.time()
         print('{} \t {:.3f} \t {:.1f} \t {:.4f} \t {:.4f} \t {:.4f} \t {:.4f} \t {:.4f} \t {:.4f}'.format(
             (i + 1) * args.print_every, lr, end - start, train_loss, train_acc, po_test_loss, po_test_acc,
@@ -235,9 +249,10 @@ def reset(model, rand_init):
 
 
 def mask_train(models, criterion, mask_opt, noise_opt, data_loader):
-    encoder, decoder, model = models
-    encoder.train()
-    decoder.train()
+    denoiser, encoder, decoder, model = models
+    denoiser.train()
+    # encoder.train()
+    # decoder.train()
     model.train()
     total_correct = 0
     total_loss = 0.0
@@ -248,39 +263,31 @@ def mask_train(models, criterion, mask_opt, noise_opt, data_loader):
 
         # step 1: calculate the adversarial perturbation for neurons
         if args.anp_eps > 0.0:
-            reset(encoder, rand_init=True)
-            reset(decoder, rand_init=True)
+            reset(denoiser, rand_init=True)
             for _ in range(args.anp_steps):
                 noise_opt.zero_grad()
 
-                include_noise(encoder)
-                include_noise(decoder)
-                output_noise = encoder(images)
-                output_noise = decoder(output_noise)
+                include_noise(denoiser)
+                output_noise = denoiser(images)
                 output_noise = model(output_noise)
                 loss_noise = - criterion(output_noise, labels)
 
                 loss_noise.backward()
-                sign_grad(encoder)
-                sign_grad(decoder)
+                sign_grad(denoiser)
                 noise_opt.step()
 
         # step 2: calculate loss and update the mask values
         mask_opt.zero_grad()
         if args.anp_eps > 0.0:
-            include_noise(encoder)
-            include_noise(decoder)
-            output_noise = encoder(images)
-            output_noise = decoder(output_noise)
+            include_noise(denoiser)
+            output_noise = denoiser(images)
             output_noise = model(output_noise)
             loss_rob = criterion(output_noise, labels)
         else:
             loss_rob = 0.0
 
-        exclude_noise(encoder)
-        exclude_noise(decoder)
-        output_clean = encoder(images)
-        output_clean = decoder(output_clean)
+        exclude_noise(denoiser)
+        output_clean = denoiser(images)
         output_clean = model(output_clean)
         loss_nat = criterion(output_clean, labels)
         loss = args.anp_alpha * loss_nat + (1 - args.anp_alpha) * loss_rob
@@ -290,8 +297,7 @@ def mask_train(models, criterion, mask_opt, noise_opt, data_loader):
         total_loss += loss.item()
         loss.backward()
         mask_opt.step()
-        clip_mask(encoder)
-        clip_mask(decoder)
+        clip_mask(denoiser)
 
     loss = total_loss / len(data_loader)
     acc = float(total_correct) / nb_samples
@@ -299,7 +305,8 @@ def mask_train(models, criterion, mask_opt, noise_opt, data_loader):
 
 
 def test(models, criterion, data_loader):
-    encoder, decoder, model = models
+    denoiser, encoder, decoder, model = models
+    denoiser.eval()
     encoder.eval()
     decoder.eval()
     model.eval()
@@ -308,7 +315,7 @@ def test(models, criterion, data_loader):
     with torch.no_grad():
         for i, (images, labels) in enumerate(data_loader):
             images, labels = images.to(device), labels.to(device)
-            output = model(images)
+            output = model(denoiser(images))
             total_loss += criterion(output, labels).item()
             pred = output.data.max(1)[1]
             total_correct += pred.eq(labels.data.view_as(pred)).sum()

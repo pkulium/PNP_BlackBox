@@ -6,6 +6,7 @@ from archs.tiny_resnet import TinyResNet50, TinyResNet18
 #from archs.cae import MNIST_CAE, CelebA_CAE, CIFAR_CAE, Cifar_Decoder_384, Cifar_Encoder_384, Cifar_Decoder_768_24, Cifar_Encoder_768_24, Cifar_Decoder_768_32, Cifar_Encoder_768_32, Cifar_Decoder_1536, Cifar_Encoder_1536, Cifar_Decoder_2048, Cifar_Encoder_2048, Cifar_Decoder_192, Cifar_Encoder_192, Cifar_Decoder_192_24, Cifar_Encoder_192_24, TinyImageNet_Decoder, TinyImageNet_Encoder, TinyImageNet_Decoder_768, TinyImageNet_Encoder_768, STL_Encoder, STL_Decoder, MNIST_Dim_Encoder, MNIST_Dim_Decoder, ImageNet_Encoder_1152, ImageNet_Decoder_1152, ImageNet_Encoder_1728, ImageNet_Decoder_1728
 from archs.cae import *
 from archs.dncnn import DnCNN
+from archs.dncnn_perturb import DnCNN_Perturb
 from archs.cifar_resnet import resnet as resnet_cifar
 from archs.mnist_resnet import MnistResNet101 as resnet101_mnist
 from archs.memnet import MemNet
@@ -303,6 +304,10 @@ def get_architecture(arch: str, dataset: str=None, pytorch_pretrained: bool=Fals
     ## Image Denoising Architectures
     elif arch == "cifar_dncnn":
         model = DnCNN(image_channels=3, depth=17, n_channels=64).cuda()
+        #model = DnCNN(image_channels=3, depth=17, n_channels=64)
+        return model
+    elif arch == "cifar_dncnn_perturb":
+        model = DnCNN_Perturb(image_channels=3, depth=3, n_channels=64).cuda()
         #model = DnCNN(image_channels=3, depth=17, n_channels=64)
         return model
     elif arch == "mnist_dncnn":

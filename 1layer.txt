@@ -1,0 +1,8 @@
+{'arch': 'resnet18', 'checkpoint': './save/model_39.th', 'widen_factor': 1, 'batch_size': 128, 'lr': 0.2, 'nb_iter': 2000, 'print_every': 500, 'data_dir': '../data', 'val_frac': 0.01, 'output_dir': './save', 'trigger_info': './save/trigger_info.th', 'poison_type': 'benign', 'poison_target': 0, 'trigger_alpha': 1.0, 'anp_eps': 0.4, 'anp_steps': 1, 'anp_alpha': 0.2, 'dataset': 'cifar10', 'optimization_method': 'FO', 'zo_method': 'RGE', 'q': 192, 'mu': 0.005, 'model_type': 'AE_DS', 'encoder_arch': 'cifar_encoder_192_24_noise', 'decoder_arch': 'cifar_decoder_192_24_noise', 'classifier': '', 'pretrained_denoiser': '', 'pretrained_encoder': './trained_models/CIFAR-10/ZO_AE_DS_lr-3_q192_Coord/best_encoder.pth.tar', 'pretrained_decoder': './trained_models/CIFAR-10/ZO_AE_DS_lr-3_q192_Coord/best_decoder.pth.tar'}
+Files already downloaded and verified
+Files already downloaded and verified
+Iter 	 lr 	 Time 	 TrainLoss 	 TrainACC 	 PoisonLoss 	 PoisonACC 	 CleanLoss 	 CleanACC
+500 	 0.200 	 358.8 	 0.5063 	 0.8420 	 0.0000 	 1.0000 	 0.4408 	 0.8568
+1000 	 0.200 	 358.5 	 0.4972 	 0.8456 	 0.0000 	 1.0000 	 0.4428 	 0.8564
+1500 	 0.200 	 354.3 	 0.5162 	 0.8414 	 0.0000 	 1.0000 	 0.4640 	 0.8524
+2000 	 0.200 	 358.1 	 0.5120 	 0.8415 	 0.0000 	 1.0000 	 0.4476 	 0.8563
